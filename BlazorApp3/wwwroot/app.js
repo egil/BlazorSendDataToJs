@@ -1,7 +1,14 @@
+window.loadDataFrom = (chart, data, layout) => {
+    data.x = data.x.map(dt => new Date(dt));
+    Plotly.newPlot(chart, [data], layout);
+}
+
+
 window.loadDataFromApi = (chart, layout) => {
     return fetch('/api/data')
         .then(response => response.json())
         .then(data => {
+            data.x = data.x.map(dt => new Date(dt));
             Plotly.newPlot(chart, [data], layout);
             return true;
         });

@@ -36,9 +36,9 @@ public sealed partial class GraphInterop : ComponentBase
             };
 
             await JS.InvokeVoidAsync(
-                "Plotly.newPlot",
+                "loadDataFrom",
                 chart,
-                new[] { StaticTestData.RawData },
+                StaticTestData.RawData,
                 layout);
 
             stopwatch.Stop();
