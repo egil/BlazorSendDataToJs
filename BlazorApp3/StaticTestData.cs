@@ -9,16 +9,18 @@ public static class StaticTestData
     private static TimeSeriesData GenerateRawData()
     {
         var total = 1_000_000;
-        var start = DateTimeOffset.UtcNow.AddDays(-100);
+        var start = DateTime.UtcNow.AddDays(-100);
 
-        return new TimeSeriesData(
-            Enumerable
+        return new TimeSeriesData
+        {
+            X = Enumerable
                 .Range(0, total)
                 .Select(x => start.AddSeconds(x))
-                .ToList(),
-            Enumerable
+                .ToArray(),
+            Y = Enumerable
                 .Range(0, total)
                 .Select(x => Random.Shared.NextDouble() * Random.Shared.Next(1, 10))
-                .ToList());
+                .ToArray(),
+        };
     }
 }

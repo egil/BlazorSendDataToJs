@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message TimeSeriesData {
+    repeated int64 x = 1;
+    repeated double y = 2;
+    string type = 3;
+}
