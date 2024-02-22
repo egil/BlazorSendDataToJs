@@ -7,7 +7,7 @@ window.loadDataFromApi = (chart, layout) => {
         });
 }
 
-window.loadDataFromGrpc = async (chart, grpcDataStream, layout) => {
+window.loadDataFromProtobuf = async (chart, grpcDataStream, layout) => {
     var buf = new Uint8Array(await grpcDataStream.arrayBuffer());
 
     // Define your .proto schema as a string

@@ -5,7 +5,7 @@ using ProtoBuf;
 
 namespace BlazorApp3.Components.Pages;
 
-public sealed partial class GraphInteropGrpc : ComponentBase
+public sealed partial class GraphInteropProtobuf : ComponentBase
 {
     private ElementReference chart;
     private TimeSpan elapsed;
@@ -42,7 +42,7 @@ public sealed partial class GraphInteropGrpc : ComponentBase
             using var streamRef = new DotNetStreamReference(stream: memoryStream);
 
             await JS.InvokeVoidAsync(
-                "loadDataFromGrpc",
+                "loadDataFromProtobuf",
                 chart,
                 streamRef,
                 layout); ;
