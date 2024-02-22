@@ -13,7 +13,6 @@ window.loadDataFromGrpc = async (chart, grpcDataStream, layout) => {
     // Define your .proto schema as a string
     const protoStr = `
         syntax = "proto3";
-
         message TimeSeriesData {
             repeated int64 x = 1;
             repeated double y = 2;
