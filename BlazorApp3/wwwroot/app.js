@@ -54,3 +54,18 @@ window.loadDataFromProtobufArray = (chart, protobufArray, layout) => {
 
     Plotly.newPlot(chart, [data], layout);
 }
+
+window.decompress = async function (compressedBytes) {
+    const stream = new Blob([compressedBytes]).stream();
+    const decompressedStream = stream.pipeThrough(
+        new DecompressionStream("gzip")
+    );
+    const text = await new Response(decompressedStream).text();
+    return text;
+}
+window.loadCompressedData = function (chart, data, layout) {
+    decompress(data).then(rawdata => {
+        var parsedData = JSON.parse(rawdata);
+        Plotly.newPlot(chart, parsedData, layout);
+    });
+}
