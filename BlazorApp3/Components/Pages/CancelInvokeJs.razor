@@ -9,38 +9,31 @@
             return;
 
         await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
-        
+
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(TimeSpan.FromMilliseconds(50));
         await InvokeAsync("LARGE", StaticTestData.RawData, cts.Token);
-        
+
         await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
     }
 
     private async Task InvokeAsync(string name, TimeSeriesData payload, CancellationToken cancellationToken = default)
     {
         var stream = CreateCompressedJsonStream(payload, cancellationToken);
-        try
+        stream.Position = 0;
+
+        using var streamRef = new DotNetStreamReference(stream: stream);
+        var largeJsPayloadTask = JS.InvokeVoidAsync(
+            "invokeMeAsync",
+            name,
+            streamRef);
+
+        cancellationToken.Register(async () =>
         {
-            stream.Position = 0;
+            await JS.InvokeVoidAsync("abortInvokeMeAsync", name);
+        });
 
-            using var streamRef = new DotNetStreamReference(stream: stream, leaveOpen: true);
-            var largeJsPayloadTask = JS.InvokeVoidAsync(
-                "invokeMeAsync",
-                name,
-                streamRef);
-
-            cancellationToken.Register(async () =>
-            {
-                await JS.InvokeVoidAsync("abortInvokeMeAsync", name);
-            });
-
-            await largeJsPayloadTask;
-        }
-        finally
-        {
-            await stream.DisposeAsync();
-        }
+        await largeJsPayloadTask;
     }
 
     private Stream CreateCompressedJsonStream(TimeSeriesData payload, CancellationToken cancellationToken)
@@ -54,7 +47,7 @@
         return stream;
     }
 
-    private class JsInvokeCancellableMemoryStream : MemoryStream
+    private sealed class JsInvokeCancellableMemoryStream : MemoryStream
     {
         private readonly CancellationToken abortToken;
 
@@ -66,8 +59,9 @@
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             // Because SendDotNetStreamToJS (https://source.dot.net/#Microsoft.AspNetCore.Components.Server/ComponentHub.cs,287)
-            // while continue sending even if cancellation is requested, this effectively stops the sending
-            // and allows the stream to be disposed without causing an exception to be thrown.
+            // will throw if the stream gets disposed before it is finished sending the full content,
+            // this effectively stops it from continuing after the cancellation token has been set. We cheat
+            // it to think the stream is done and DotNetStreamReference will then dispose it.
             if (abortToken.IsCancellationRequested)
             {
                 return ValueTask.FromResult(0);
