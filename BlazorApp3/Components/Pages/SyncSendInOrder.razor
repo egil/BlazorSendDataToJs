@@ -1,0 +1,24 @@
+﻿@page "/syn-send-in-order"
+@inject IJSRuntime JS
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        byte[] fiftyMBArray = new byte[50 * 1024 * 1024];
+        byte[] oneKBArray = new byte[1024];
+
+        var invokeTasks = Enumerable.Range(1, 20)
+            .Select(number => JS.InvokeVoidAsync(
+                "invokeMe", 
+                $"Invoke #{number}", 
+                number % 2 == 0 
+                ? fiftyMBArray 
+                : oneKBArray))
+            .Select(task => task.AsTask())
+            .ToArray();
+
+        await Task.WhenAll(invokeTasks);
+    }
+}

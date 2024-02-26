@@ -4,11 +4,12 @@ namespace BlazorApp3;
 
 public static class StaticTestData
 {
-    public static TimeSeriesData RawData { get; } = GenerateRawData();
+    public static TimeSeriesData RawData { get; } = GenerateRawData(1_000_000);
 
-    private static TimeSeriesData GenerateRawData()
+    public static TimeSeriesData RawDataSmall { get; } = GenerateRawData(1000);
+
+    private static TimeSeriesData GenerateRawData(int total)
     {
-        var total = 1_000_000;
         var start = DateTime.UtcNow.AddDays(-100);
 
         return new TimeSeriesData

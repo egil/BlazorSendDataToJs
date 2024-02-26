@@ -35,10 +35,23 @@ public sealed partial class GraphInterop : ComponentBase
                 },
             };
 
-            await JS.InvokeVoidAsync(
+            using var cts = new CancellationTokenSource();
+
+            var large = JS.InvokeVoidAsync(
                 "loadDataFrom",
+                cts.Token,
                 chart,
                 StaticTestData.RawData,
+                layout);
+
+            cts.Cancel();
+            
+            //await Task.Delay(1000);
+
+            var small = JS.InvokeVoidAsync(
+                "loadDataFrom",
+                chart,
+                StaticTestData.RawDataSmall,
                 layout);
 
             stopwatch.Stop();

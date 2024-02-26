@@ -1,5 +1,6 @@
 window.loadDataFrom = (chart, data, layout) => {
     data.x = data.x.map(dt => new Date(dt));
+    console.log("Received " + data.x.length);
     Plotly.newPlot(chart, [data], layout);
 }
 
@@ -33,14 +34,7 @@ window.loadDataFromProtobuf = (chart, protobufStream, layout) => {
         .arrayBuffer()
         .then(rawArrayBuffer => {
             const protobufArray = new Uint8Array(rawArrayBuffer);
-            const message = TimeSeriesData.decode(protobufArray);
-            const data = {
-                x: message.x.map(ts => new Date(ts * 1000)),
-                y: message.y,
-                type: 'scatter'
-            };
-
-            Plotly.newPlot(chart, [data], layout);
+            loadDataFromProtobufArray(chart, protobufArray, layout);
         });
 }
 
@@ -65,7 +59,47 @@ window.decompress = async function (compressedBytes) {
 }
 window.loadCompressedData = function (chart, data, layout) {
     decompress(data).then(rawdata => {
-        var parsedData = JSON.parse(rawdata);
-        Plotly.newPlot(chart, parsedData, layout);
+        var data = JSON.parse(rawdata);
+        data.x = data.x.map(dt => new Date(dt));
+        Plotly.newPlot(chart, [data], layout);
     });
+}
+
+window.invokeMe = function (name, randomPayload) {
+    console.log(name + " | " + randomPayload.length + " | " + new Date().toISOString());
+}
+
+const aborters = {
+
+};
+
+window.invokeMeAsync = async function (name, randomPayloadStream) {
+    abortInvokeMeAsync();
+
+    try {
+        const controller = new AbortController();
+        aborters[name] = controller;
+        const stream = await randomPayloadStream.stream();
+        const randomPayload = await processJsonStream(controller.signal, stream);
+        console.log(`${name} | ${randomPayload.x.length} | ${new Date().toISOString()}`);
+    }
+    catch (err) {
+        console.warn(err);
+    }
+}
+
+window.abortInvokeMeAsync = function (name) {
+    if (aborters[name]) {
+        aborters[name].abort('Cancelled from server'); // Abort previous stream if exists
+        delete aborters[name];
+    }
+}
+
+async function processJsonStream(abortSignal, stream) {
+    if (abortSignal.aborted) {
+        throw new Error(abortSignal.aborted.reason);
+    }
+
+    const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'), { signal: abortSignal });
+    return new Response(decompressedStream).json();
 }

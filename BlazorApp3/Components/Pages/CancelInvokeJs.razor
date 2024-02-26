@@ -1,0 +1,79 @@
+﻿@page "/cancel-js-invokes"
+@using System.Text.Json
+@using System.IO.Compression
+@inject IJSRuntime JS
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
+        
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromMilliseconds(50));
+        await InvokeAsync("LARGE", StaticTestData.RawData, cts.Token);
+        
+        await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
+    }
+
+    private async Task InvokeAsync(string name, TimeSeriesData payload, CancellationToken cancellationToken = default)
+    {
+        var stream = CreateCompressedJsonStream(payload, cancellationToken);
+        try
+        {
+            stream.Position = 0;
+
+            using var streamRef = new DotNetStreamReference(stream: stream, leaveOpen: true);
+            var largeJsPayloadTask = JS.InvokeVoidAsync(
+                "invokeMeAsync",
+                name,
+                streamRef);
+
+            cancellationToken.Register(async () =>
+            {
+                await JS.InvokeVoidAsync("abortInvokeMeAsync", name);
+            });
+
+            await largeJsPayloadTask;
+        }
+        finally
+        {
+            await stream.DisposeAsync();
+        }
+    }
+
+    private Stream CreateCompressedJsonStream(TimeSeriesData payload, CancellationToken cancellationToken)
+    {
+        var stream = new JsInvokeCancellableMemoryStream(cancellationToken);
+        using (GZipStream zipStream = new GZipStream(stream, CompressionLevel.NoCompression, leaveOpen: true))
+        {
+            using var streamWriter = new Utf8JsonWriter(zipStream);
+            JsonSerializer.Serialize(streamWriter, payload, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        }
+        return stream;
+    }
+
+    private class JsInvokeCancellableMemoryStream : MemoryStream
+    {
+        private readonly CancellationToken abortToken;
+
+        public JsInvokeCancellableMemoryStream(CancellationToken abortToken)
+        {
+            this.abortToken = abortToken;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            // Because SendDotNetStreamToJS (https://source.dot.net/#Microsoft.AspNetCore.Components.Server/ComponentHub.cs,287)
+            // while continue sending even if cancellation is requested, this effectively stops the sending
+            // and allows the stream to be disposed without causing an exception to be thrown.
+            if (abortToken.IsCancellationRequested)
+            {
+                return ValueTask.FromResult(0);
+            }
+
+            return base.ReadAsync(buffer, cancellationToken);
+        }
+    }
+}

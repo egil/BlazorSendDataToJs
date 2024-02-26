@@ -45,7 +45,7 @@ public sealed partial class GraphInteropProtobuf : ComponentBase
                 "loadDataFromProtobuf",
                 chart,
                 streamRef,
-                layout); ;
+                layout);
 
             stopwatch.Stop();
             elapsed = stopwatch.Elapsed;
