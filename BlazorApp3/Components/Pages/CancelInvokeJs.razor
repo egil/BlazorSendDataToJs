@@ -8,66 +8,87 @@
         if (!firstRender)
             return;
 
-        await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
+        await InvokeAsync(StaticTestData.RawDataSmall);
 
         using var cts = new CancellationTokenSource();
-        cts.CancelAfter(TimeSpan.FromMilliseconds(50));
-        await InvokeAsync("LARGE", StaticTestData.RawData, cts.Token);
+        var t = InvokeAsync(StaticTestData.RawData, cts.Token);
+        cts.Cancel();
+        await t;
 
-        await InvokeAsync("SMALL", StaticTestData.RawDataSmall);
+        await InvokeAsync(StaticTestData.RawDataSmall);
     }
 
-    private async Task InvokeAsync(string name, TimeSeriesData payload, CancellationToken cancellationToken = default)
+    private ValueTask InvokeAsync(TimeSeriesData payload, CancellationToken cancellationToken = default)
     {
-        var stream = CreateCompressedJsonStream(payload, cancellationToken);
+        var stream = CreateJsonStream([payload], cancellationToken);
         stream.Position = 0;
 
-        using var streamRef = new DotNetStreamReference(stream: stream);
-        var largeJsPayloadTask = JS.InvokeVoidAsync(
-            "invokeMeAsync",
-            name,
-            streamRef);
-
-        cancellationToken.Register(async () =>
-        {
-            await JS.InvokeVoidAsync("abortInvokeMeAsync", name);
-        });
-
-        await largeJsPayloadTask;
+        return JS.InvokeStreamVoidAsync(
+            "invokeMeX",
+            cancellationToken,
+            stream,
+            "foo");
     }
 
-    private Stream CreateCompressedJsonStream(TimeSeriesData payload, CancellationToken cancellationToken)
+    private Stream CreateJsonStream(TimeSeriesData[] payload, CancellationToken cancellationToken)
     {
-        var stream = new JsInvokeCancellableMemoryStream(cancellationToken);
-        using (GZipStream zipStream = new GZipStream(stream, CompressionLevel.NoCompression, leaveOpen: true))
-        {
-            using var streamWriter = new Utf8JsonWriter(zipStream);
-            JsonSerializer.Serialize(streamWriter, payload, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        }
+        var stream = new MemoryStream();
+        using var streamWriter = new Utf8JsonWriter(stream);
+        JsonSerializer.Serialize(streamWriter, payload, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         return stream;
     }
 
-    private sealed class JsInvokeCancellableMemoryStream : MemoryStream
-    {
-        private readonly CancellationToken abortToken;
+    // private async Task InvokeAsync(string name, TimeSeriesData payload, CancellationToken cancellationToken = default)
+    // {
+    //     var stream = CreateCompressedJsonStream(payload, cancellationToken);
+    //     stream.Position = 0;
 
-        public JsInvokeCancellableMemoryStream(CancellationToken abortToken)
-        {
-            this.abortToken = abortToken;
-        }
+    //     using var streamRef = new DotNetStreamReference(stream: stream);
+    //     var largeJsPayloadTask = JS.InvokeVoidAsync(
+    //         "invokeMeAsync",
+    //         name,
+    //         streamRef);
 
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            // Because SendDotNetStreamToJS (https://source.dot.net/#Microsoft.AspNetCore.Components.Server/ComponentHub.cs,287)
-            // will throw if the stream gets disposed before it is finished sending the full content,
-            // this effectively stops it from continuing after the cancellation token has been set. We cheat
-            // it to think the stream is done and DotNetStreamReference will then dispose it.
-            if (abortToken.IsCancellationRequested)
-            {
-                return ValueTask.FromResult(0);
-            }
+    //     cancellationToken.Register(async () =>
+    //     {
+    //         await JS.InvokeVoidAsync("abortInvokeMeAsync", name);
+    //     });
 
-            return base.ReadAsync(buffer, cancellationToken);
-        }
-    }
+    //     await largeJsPayloadTask;
+    // }
+
+    // private Stream CreateCompressedJsonStream(TimeSeriesData payload, CancellationToken cancellationToken)
+    // {
+    //     var stream = new JsInvokeCancellableMemoryStream(cancellationToken);
+    //     using (GZipStream zipStream = new GZipStream(stream, CompressionLevel.NoCompression, leaveOpen: true))
+    //     {
+    //         using var streamWriter = new Utf8JsonWriter(zipStream);
+    //         JsonSerializer.Serialize(streamWriter, payload, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    //     }
+    //     return stream;
+    // }
+
+    // private sealed class JsInvokeCancellableMemoryStream : MemoryStream
+    // {
+    //     private readonly CancellationToken abortToken;
+
+    //     public JsInvokeCancellableMemoryStream(CancellationToken abortToken)
+    //     {
+    //         this.abortToken = abortToken;
+    //     }
+
+    //     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    //     {
+    //         // Because SendDotNetStreamToJS (https://source.dot.net/#Microsoft.AspNetCore.Components.Server/ComponentHub.cs,287)
+    //         // will throw if the stream gets disposed before it is finished sending the full content,
+    //         // this effectively stops it from continuing after the cancellation token has been set. We cheat
+    //         // it to think the stream is done and DotNetStreamReference will then dispose it.
+    //         if (abortToken.IsCancellationRequested)
+    //         {
+    //             return ValueTask.FromResult(0);
+    //         }
+
+    //         return base.ReadAsync(buffer, cancellationToken);
+    //     }
+    // }
 }
